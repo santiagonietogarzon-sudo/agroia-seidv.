@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
+import difflib  # Librería para lectura inteligente de palabras
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (BLANCO Y VERDE ESMERALDA) ---
-st.set_page_config(page_title="SEIDV | AgroIA Platform", page_icon="🌿", layout="wide")
+# --- 1. CONFIGURACIÓN DE INTERFAZ (BLANCO Y VERDE PROFUNDO) ---
+st.set_page_config(page_title="SEIDV | Inteligencia Agrícola", page_icon="🌿", layout="wide")
 
 st.markdown("""
     <style>
@@ -13,98 +13,119 @@ st.markdown("""
         background-color: #f8faf9 !important; 
         border-left: 5px solid #004d26 !important;
         border-radius: 10px !important;
-        padding: 15px !important;
     }
     .stButton>button { 
         background-color: #004d26 !important; 
         color: white !important; 
-        font-size: 20px !important;
-        height: 3em !important;
-        width: 100% !important;
-        border-radius: 10px !important;
         font-weight: bold !important;
+        border-radius: 10px !important;
+        height: 3.5em !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CABECERA ---
-st.title("🌿 SEIDV: Sistema de Diagnóstico Ecofisiológico")
+# --- 2. FUNCIÓN DE LECTURA INTELIGENTE ---
+def encontrar_columna(nombre_buscado, lista_columnas):
+    """Busca la columna más parecida aunque falten letras o cambien mayúsculas"""
+    lista_normalizada = [c.upper().strip() for c in lista_columnas]
+    coincidencias = difflib.get_close_matches(nombre_buscado.upper(), lista_normalizada, n=1, cutoff=0.6)
+    if coincidencias:
+        idx = lista_normalizada.index(coincidencias[0])
+        return lista_columnas[idx]
+    return None
+
+# --- 3. INTERFAZ ---
+st.title("🌿 SEIDV: Diagnóstico Inteligente")
 st.write("---")
 
-# --- 3. PANEL DE ENTRADA ---
 with st.sidebar:
-    st.header("📍 Configuración")
-    cultivo = st.text_input("Variedad de Cultivo", "Mamey")
-    lote = st.text_input("Lote / Sección", "Lote A")
-    st.markdown("---")
-    st.caption("Metodología: J. Barrios (2026)")
+    st.header("⚙️ Configuración")
+    cultivo = st.text_input("Cultivo", "Mamey")
+    lote = st.text_input("Lote", "Madrigal Farm")
+    st.info("La IA leerá su Excel aunque los nombres de las columnas no sean exactos.")
 
-st.subheader("1. Carga de Biometría")
-archivo = st.file_uploader("Sube tu archivo Excel (.xlsx)", type=["xlsx"])
+st.subheader("1. Carga de Archivo")
+archivo = st.file_uploader("Subir Excel de Biometría", type=["xlsx"])
 
 if archivo:
-    # Mostramos un mensaje de éxito al cargar
-    st.success("Archivo cargado correctamente. Configure los parámetros y presione el botón de abajo.")
+    st.success("✅ Archivo cargado.")
     
-    # --- BOTÓN DE INICIO (TU PEDIDO) ---
-    st.write("---")
-    if st.button("🚀 INICIAR ANÁLISIS SEIDV™"):
+    if st.button("🚀 INICIAR ANÁLISIS EXPERTO"):
         try:
             df = pd.read_excel(archivo, engine='openpyxl')
-            df.columns = [c.strip().upper() for c in df.columns]
+            cols = list(df.columns)
             
-            # Cálculos Maestros
-            df['CRA'] = ((df['PESO FRESCO'] - df['PESO SECO']) / (df['PESO TURGENTE'] - df['PESO SECO'])) * 100
-            df['MANEJO'] = df['TRATAMIENTO'].apply(lambda x: 'Microbióticos (TN)' if 'TN' in str(x).upper() else 'Control')
-            
-            hojas_criticas = df[df['CRA'] < 70].shape[0]
-            idfl = hojas_criticas / len(df)
-            
-            # --- RESULTADOS ---
-            st.header(f"🔬 Resultados del Diagnóstico: {lote}")
-            
-            # Métricas de Impacto
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("IDFL", f"{idfl:.2f}", "Dominancia" if idfl > 0.5 else "Estable")
-            m2.metric("SPAD Promedio", f"{df['SPAD'].mean():.1f}")
-            m3.metric("CRA Lote", f"{df['CRA'].mean():.1f}%")
-            m4.metric("Estado", "ALERTA" if idfl > 0.5 else "ÓPTIMO")
+            # Buscamos las columnas de forma inteligente
+            col_pf = encontrar_columna("PESO FRESCO", cols)
+            col_ps = encontrar_columna("PESO SECO", cols)
+            col_pt = encontrar_columna("PESO TURGENTE", cols)
+            col_spad = encontrar_columna("SPAD", cols)
+            col_trat = encontrar_columna("TRATAMIENTO", cols)
 
-            # --- ANÁLISIS GRÁFICO ---
-            col_a, col_b = st.columns(2)
-            with col_a:
-                fig1 = px.box(df, x='MANEJO', y='SPAD', color='MANEJO', 
-                             title="Vigor Foliar por Manejo",
-                             color_discrete_map={'Microbióticos (TN)': '#004d26', 'Control': '#cccccc'})
-                st.plotly_chart(fig1, use_container_width=True)
-            with col_b:
-                fig2 = px.scatter(df, x='CRA', y='SPAD', color='MANEJO', 
-                                 title="Relación CRA vs Fotosíntesis",
-                                 trendline="ols",
-                                 color_discrete_map={'Microbióticos (TN)': '#004d26', 'Control': '#cccccc'})
-                st.plotly_chart(fig2, use_container_width=True)
+            if all([col_pf, col_ps, col_pt, col_spad]):
+                # Renombramos para trabajar fácil internamente
+                df = df.rename(columns={col_pf: 'PF', col_ps: 'PS', col_pt: 'PT', col_spad: 'SPAD'})
+                if col_trat: df = df.rename(columns={col_trat: 'TRATAMIENTO'})
+                
+                # --- CÁLCULOS SEIDV ---
+                df = df.dropna(subset=['PF', 'PS', 'PT', 'SPAD'])
+                df['CRA'] = ((df['PF'] - df['PS']) / (df['PT'] - df['PS'])) * 100
+                
+                # Manejo de Grupos
+                if 'TRATAMIENTO' in df.columns:
+                    df['MANEJO'] = df['TRATAMIENTO'].apply(lambda x: 'Microbióticos (TN)' if 'TN' in str(x).upper() else 'Control')
+                else:
+                    df['MANEJO'] = 'General'
 
-            # --- INFORME DETALLADO ESTILO MADRIGAL FARM ---
-            st.write("---")
-            st.subheader("📋 Conclusiones Clínicas")
-            
-            if idfl > 0.5:
-                st.error("### ORIGEN HÍDRICO DOMINANTE")
-                st.markdown(f"""
-                **Análisis:** El sistema no está fallando por una causa metabólica primaria. El IDFL de **{idfl:.2f}** confirma una limitación directa en la hidratación celular.
+                idfl = (df[df['CRA'] < 70].shape[0] / len(df))
+
+                # --- RESULTADOS ---
+                st.header(f"🔬 Análisis de {cultivo} - {lote}")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("IDFL", f"{idfl:.2f}", "Dominancia Hídrica" if idfl > 0.5 else "Estable")
+                m2.metric("Vigor (SPAD)", f"{df['SPAD'].mean():.1f}")
+                m3.metric("Hidratación (CRA)", f"{df['CRA'].mean():.1f}%")
+
+                # Gráficas Profesionales
+                c_a, c_b = st.columns(2)
+                with c_a:
+                    fig1 = px.box(df, x='MANEJO', y='SPAD', color='MANEJO', title="Impacto en Vigor",
+                                 color_discrete_map={'Microbióticos (TN)': '#004d26', 'Control': '#a8c9b9', 'General': '#004d26'})
+                    st.plotly_chart(fig1, use_container_width=True)
+                with c_b:
+                    fig2 = px.scatter(df, x='CRA', y='SPAD', color='MANEJO', title="Ruta Fisiológica",
+                                     trendline="ols", color_discrete_sequence=['#004d26', '#a8c9b9'])
+                    st.plotly_chart(fig2, use_container_width=True)
+
+                # --- EL INFORME MAESTRO (BASADO EN EL PDF) ---
+                st.write("---")
+                st.subheader("📋 Informe Clínico Detallado")
                 
-                **Ruta Fisiológica:**
-                - La planta mantiene transpiración, pero sobre una base hídrica deficiente.
-                - Esto genera una restricción estomática progresiva.
-                
-                **Recomendaciones SEIDV:**
-                1. **Recuperar el Origen:** Corregir el CRA antes de cualquier fertilización.
-                2. **Modulación Radicular:** Aplicar **Galahad** para mejorar absorción.
-                3. **Prevención Biótica:** Riesgo inminente de **Ácaros/Trips** en los próximos 7-14 días.
-                """)
+                if idfl > 0.5:
+                    st.warning("### DIAGNÓSTICO: DESORDEN DE ORIGEN HÍDRICO DOMINANTE")
+                    st.markdown(f"""
+                    **Interpretación:** Con un IDFL de **{idfl:.2f}**, el sistema confirma que la falla no es metabólica primaria. 
+                    El **{idfl*100:.0f}%** de las hojas están en condición crítica.
+                    
+                    **Ruta Detectada:** $Hidratación \rightarrow Estomas \downarrow \rightarrow Fotosíntesis \downarrow$
+                    
+                    **Acciones Inmediatas (Lógica Barrios):**
+                    1. **Corregir Origen:** Recuperar el CRA mediante riego antes de cualquier nutrición.
+                    2. **Reactivación:** Aplicar moduladores fisiológicos (Galahad) para mejorar la absorción.
+                    3. **Alerta Biótica:** El estrés acumulado abre una ventana de riesgo de **Ácaros y Trips** en 7-14 días.
+                    """)
+                else:
+                    st.success("### DIAGNÓSTICO: EQUILIBRIO METABÓLICO ESTABLE")
+                    st.write("La planta mantiene turgencia óptima. La ruta fotosintética fluye sin restricciones.")
+
             else:
-                st.success("### EQUILIBRIO METABÓLICO ESTABLE")
-                st.write("La ruta Hidratación → Estomas → Transpiración fluye correctamente.")
+                faltan = []
+                if not col_pf: faltan.append("Peso Fresco")
+                if not col_ps: faltan.append("Peso Seco")
+                if not col_pt: faltan.append("Peso Turgente")
+                if not col_spad: faltan.append("SPAD")
+                st.error(f"❌ No pude identificar estas columnas: {', '.join(faltan)}")
+                st.info("Intenta que los nombres en tu Excel se parezcan a 'Peso Fresco', 'Peso Seco', etc.")
 
         except Exception as e:
-            st.error(f"Error técnico en el análisis: {e}")
+            st.error(f"Ocurrió un error en el procesamiento: {e}")
