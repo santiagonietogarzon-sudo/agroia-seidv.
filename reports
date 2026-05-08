@@ -1,0 +1,89 @@
+from fpdf import FPDF
+import datetime
+
+class SEIDV_Report(FPDF):
+    def header(self):
+        # Configuración de encabezado profesional
+        self.set_fill_color(0, 77, 38)  # Verde Esmeralda SEIDV
+        self.rect(0, 0, 210, 40, 'F')
+        self.set_font('Arial', 'B', 16)
+        self.set_text_color(255, 255, 255)
+        self.cell(0, 15, 'CDEV | Centro de Diagnóstico Ecofisiológico Vegetal', 0, 1, 'C')
+        self.set_font('Arial', '', 10)
+        self.cell(0, 5, 'Sistema Ecofisiológico Integrado de Diagnóstico Vegetal (SEIDV™)', 0, 1, 'C')
+        self.ln(20)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f'Página {self.page_no()} | Propiedad Intelectual Jaime Barrios 2026', 0, 0, 'C')
+
+def generar_pdf_clinico(datos_diagnostico):
+    pdf = SEIDV_Report()
+    pdf.add_page()
+    
+    # 1. Información General
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(0, 77, 38)
+    pdf.cell(0, 10, "RESUMEN EJECUTIVO - DIAGNÓSTICO ECOFISIOLÓGICO", 0, 1, 'L')
+    
+    pdf.set_font('Arial', '', 10)
+    pdf.set_text_color(0, 0, 0)
+    info_texto = (
+        f"Farm: {datos_diagnostico['finca']}\n"
+        f"Responsable: {datos_diagnostico['grower']}\n"
+        f"Fecha de Informe: {datetime.datetime.now().strftime('%d/%m/%Y')}\n"
+        f"Cultivo: {datos_diagnostico['cultivo']}"
+    )
+    pdf.multi_cell(0, 5, info_texto)
+    pdf.ln(5)
+
+    # 2. Bloque de Diagnóstico (Lógica de Interpretación)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 10, "ANÁLISIS DE LA RUTA FISIOLÓGICA", 1, 1, 'C', fill=True)
+    
+    pdf.set_font('Arial', '', 10)
+    diagnostico_texto = (
+        f"El lote presenta un IDFL de {datos_diagnostico['idfl']:.2f}. "
+        f"Se observa un CRA promedio de {datos_diagnostico['cra']:.1f}%. "
+        "Este comportamiento confirma que el sistema presenta una limitación directa "
+        "en la hidratación celular, desencadenando una restricción estomática progresiva."
+    )
+    pdf.ln(2)
+    pdf.multi_cell(0, 6, diagnostico_texto)
+    
+    # 3. Predicción Biótica (IA)
+    pdf.ln(5)
+    pdf.set_text_color(200, 0, 0) if datos_diagnostico['idfl'] > 0.5 else pdf.set_text_color(0, 77, 38)
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 10, "PRONÓSTICO FITOSANITARIO (7-14 DÍAS)", 0, 1, 'L')
+    
+    pdf.set_font('Arial', 'I', 10)
+    pdf.set_text_color(0, 0, 0)
+    prediccion = datos_diagnostico['prediccion_ia']
+    pdf.multi_cell(0, 6, prediccion)
+
+    # 4. Tabla de Recomendaciones
+    pdf.ln(5)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(60, 10, "Acción Fisiológica", 1)
+    pdf.cell(130, 10, "Objetivo Clínico", 1)
+    pdf.ln()
+    
+    pdf.set_font('Arial', '', 9)
+    recomendaciones = [
+        ["Recuperación de CRA", "Uso de osmoprotectores para reapertura estomática."],
+        ["Galahad / Bioestimulación", "Modulación del sistema radicular para absorción."],
+        ["Prevención Biótica", "Anticipación a Ácaros y Trips por estrés hídrico."]
+    ]
+    for rec in recomendaciones:
+        pdf.cell(60, 8, rec[0], 1)
+        pdf.cell(130, 8, rec[1], 1)
+        pdf.ln()
+
+    # Guardar archivo
+    nombre_archivo = f"Reporte_{datos_diagnostico['finca']}_{datetime.date.today()}.pdf"
+    pdf.output(nombre_archivo)
+    return nombre_archivo
